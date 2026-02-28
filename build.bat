@@ -9,16 +9,7 @@ pip install -r requirements.txt
 pip install pyinstaller
 
 REM Création du dossier de distribution
-python -m PyInstaller \
-    --name "Classement_Tarot" \
-    --windowed \
-    --onefile \
-    --add-data "*.xlsm;." \
-    --hidden-import=reportlab \
-    --hidden-import=PIL \
-    --hidden-import=openpyxl \
-    --clean \
-    tarot_gui.py
+pyinstaller --name "Classement_Tarot" --windowed --onefile --hidden-import=reportlab --hidden-import=PIL --hidden-import=openpyxl --clean tarot_gui.py
 
 echo.
 echo L'exécutable se trouve dans le dossier dist\

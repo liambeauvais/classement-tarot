@@ -34,6 +34,8 @@ class TarotRankingApp:
         self.export_pdf = tk.BooleanVar(value=True)
         self.export_csv = tk.BooleanVar(value=True)
         self.day_var = tk.StringVar(value="Après-midi")
+        self.month_var = tk.StringVar(value="")
+        self.error_detection = tk.BooleanVar(value=False)
         
         self.create_widgets()
         
@@ -56,31 +58,41 @@ class TarotRankingApp:
         ttk.Label(main_frame, text="Options d'exportation:").grid(row=2, column=0, sticky=tk.W, pady=5)
         ttk.Checkbutton(main_frame, text="Exporter en PDF", variable=self.export_pdf).grid(row=2, column=1, sticky=tk.W, pady=5)
         ttk.Checkbutton(main_frame, text="Exporter en CSV", variable=self.export_csv).grid(row=3, column=1, sticky=tk.W, pady=5)
+        ttk.Checkbutton(main_frame, text="Détection d'erreur", variable=self.error_detection).grid(row=4, column=1, sticky=tk.W, pady=5)
         
         # Sélection de la période
-        ttk.Label(main_frame, text="Période du tournoi:").grid(row=4, column=0, sticky=tk.W, pady=5)
+        ttk.Label(main_frame, text="Période du tournoi:").grid(row=5, column=0, sticky=tk.W, pady=5)
         day_frame = ttk.Frame(main_frame)
-        day_frame.grid(row=4, column=1, sticky=tk.W, pady=5)
+        day_frame.grid(row=5, column=1, sticky=tk.W, pady=5)
         ttk.Radiobutton(day_frame, text="Après-midi", variable=self.day_var, value="Après-midi").pack(side=tk.LEFT)
         ttk.Radiobutton(day_frame, text="Soir", variable=self.day_var, value="Soir").pack(side=tk.LEFT, padx=10)
         
+        # Sélection du mois
+        ttk.Label(main_frame, text="Mois (optionnel):").grid(row=6, column=0, sticky=tk.W, pady=5)
+        month_frame = ttk.Frame(main_frame)
+        month_frame.grid(row=6, column=1, sticky=tk.W, pady=5)
+        months = ["", "Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"]
+        month_combo = ttk.Combobox(month_frame, textvariable=self.month_var, values=months, width=15, state="readonly")
+        month_combo.pack(side=tk.LEFT)
+        month_combo.set("")
+        
         # Bouton de génération
-        ttk.Button(main_frame, text="Générer le classement", command=self.generate_ranking).grid(row=5, column=0, columnspan=3, pady=20)
+        ttk.Button(main_frame, text="Générer le classement", command=self.generate_ranking).grid(row=7, column=0, columnspan=3, pady=20)
         
         # Zone de statut
         self.status_var = tk.StringVar()
         self.status_var.set("Prêt")
         ttk.Label(main_frame, textvariable=self.status_var, relief=tk.SUNKEN, anchor=tk.W).grid(
-            row=6, column=0, columnspan=3, sticky=tk.EW, pady=10)
+            row=8, column=0, columnspan=3, sticky=tk.EW, pady=10)
         
         # Zone d'aperçu
-        ttk.Label(main_frame, text="Aperçu du classement:").grid(row=7, column=0, sticky=tk.NW, pady=5)
+        ttk.Label(main_frame, text="Aperçu du classement:").grid(row=9, column=0, sticky=tk.NW, pady=5)
         self.preview_text = tk.Text(main_frame, height=15, width=70, state=tk.DISABLED)
-        self.preview_text.grid(row=8, column=0, columnspan=3, sticky=tk.NSEW, pady=5)
+        self.preview_text.grid(row=10, column=0, columnspan=3, sticky=tk.NSEW, pady=5)
         
         # Configuration du redimensionnement
         main_frame.columnconfigure(1, weight=1)
-        main_frame.rowconfigure(8, weight=1)
+        main_frame.rowconfigure(10, weight=1)
     
     def browse_excel(self):
         filename = filedialog.askopenfilename(
@@ -142,7 +154,9 @@ class TarotRankingApp:
                 out_dir=os.path.abspath(output_dir),
                 want_pdf=self.export_pdf.get(),
                 want_csv=self.export_csv.get(),
-                day=self.day_var.get()
+                day=self.day_var.get(),
+                month=self.month_var.get(),
+                error_detection=self.error_detection.get()
             )
             
             # Mettre à jour le titre du PDF

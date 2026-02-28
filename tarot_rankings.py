@@ -10,7 +10,7 @@ from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.units import cm
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
 
-
+MODEL_SHEET_NAME = " Modele PAS TOUCHE"
 START_ROW_IDX_1BASED = 4  # Excel line 4
 END_ROW_IDX_1BASED = 100  # Excel line 100 (inclusive)
 COL_LASTNAME_LETTER = "C"  # Column C
@@ -22,6 +22,39 @@ TOP_K = 15
 
 def cell(ws, row: int, col_letter: str):
     return ws[f"{col_letter}{row}"].value
+
+
+def get_authorized_players(excel_path: str) -> set:
+    """Extrait la liste des joueurs autorisés depuis la feuille 'Modele'.
+    
+    Returns a set of (last_name, first_name) tuples.
+    """
+    try:
+        wb = load_workbook(excel_path, data_only=True)
+        authorized_players = set()
+        
+        if MODEL_SHEET_NAME in wb.sheetnames:
+            ws = wb[MODEL_SHEET_NAME]
+            max_row = ws.max_row or 0
+            
+            # Parcourir les lignes de la feuille Modele
+            for r in range(START_ROW_IDX_1BASED, max_row + 1):
+                ln = cell(ws, r, COL_LASTNAME_LETTER)
+                fn = cell(ws, r, COL_FIRSTNAME_LETTER)
+                
+                if (ln is None or str(ln).strip() == "") and (fn is None or str(fn).strip() == ""):
+                    continue
+                    
+                last_name = str(ln).strip() if ln is not None else ""
+                first_name = str(fn).strip() if fn is not None else ""
+                
+                if last_name or first_name:
+                    authorized_players.add((last_name, first_name))
+                    
+        return authorized_players, wb.sheetnames
+    except Exception:
+        # En cas d'erreur, retourner un ensemble vide (pas de détection d'erreur)
+        return set()
 
 
 def parse_excel_all_sheets(excel_path: str) -> Dict[Tuple[str, str], Tuple[List[float], List[float]]]:
@@ -148,12 +181,64 @@ def export_csv(headers: List[str], rows: List[List], out_dir: str, filename: str
     return out_path
 
 
-def export_pdf(headers: List[str], rows: List[List], out_dir: str, filename: str = "classement_tarot.pdf", day: str = "Mardi") -> str:
+def export_error_file(authorized_players: set, unauthorized_players: List[Tuple[str, str]], sheetnames: List[str], out_dir: str, day: str, month: str = "") -> str:
+    """Crée un fichier erreurs.txt avec la liste des joueurs autorisés et non autorisés."""
+    os.makedirs(out_dir, exist_ok=True)
+    
+    # Construire le nom du fichier avec le suffixe
+    suffix = f"_{day.lower()}"
+    if month:
+        suffix += f"_{month.lower()}"
+    filename = f"erreurs{suffix}.txt"
+    out_path = os.path.join(out_dir, filename)
+    
+    with open(out_path, 'w', encoding='utf-8') as f:
+        f.write("=== RAPPORT D'ERREURS ===\n\n")
+
+        f.write("Noms des feuilles traitées :\n")
+        f.write("-" * 40 + "\n")
+        for sheetname in sheetnames:
+            f.write(f"{sheetname}\n")
+        f.write("\n")
+        
+        # Liste des joueurs autorisés (depuis Modèle)
+        f.write(f"JOUEURS AUTORISÉS (feuille '{MODEL_SHEET_NAME}') :\n")
+        f.write("-" * 40 + "\n")
+        if authorized_players:
+            for last_name, first_name in sorted(authorized_players):
+                f.write(f"{last_name} {first_name}\n")
+        else:
+            f.write("Aucun joueur autorisé trouvé ou feuille 'Modèle' absente\n")
+        
+        f.write("\n")
+        
+        # Liste des joueurs non autorisés
+        f.write("JOUEURS NON AUTORISÉS (participants au challenge) :\n")
+        f.write("-" * 40 + "\n")
+        if unauthorized_players:
+            for last_name, first_name in sorted(unauthorized_players):
+                f.write(f"{last_name} {first_name}\n")
+        else:
+            f.write("Aucun joueur non autorisé détecté\n")
+        
+        f.write("\n")
+        f.write(f"Total joueurs autorisés : {len(authorized_players)}\n")
+        f.write(f"Total joueurs non autorisés : {len(unauthorized_players)}\n")
+    
+    return out_path
+
+
+def export_pdf(headers: List[str], rows: List[List], out_dir: str, filename: str = "classement_tarot.pdf", day: str = "Mardi", month: str = "") -> str:
     os.makedirs(out_dir, exist_ok=True)
     out_path = os.path.join(out_dir, filename)
 
     styles = getSampleStyleSheet()
-    title = Paragraph(f"Challenge {day}", styles["Title"])
+    # Construire le titre avec ou sans mois
+    if month:
+        title_text = f"Challenge {day} {month}"
+    else:
+        title_text = f"Challenge {day}"
+    title = Paragraph(title_text, styles["Title"])
     spacer = Spacer(1, 0.3*cm)
 
     # Two header rows: group label over points columns only
@@ -223,15 +308,33 @@ def export_pdf(headers: List[str], rows: List[List], out_dir: str, filename: str
     return out_path
 
 
-def run(excel_path: str, out_dir: str, want_pdf: bool, want_csv: bool, day: str):
+def run(excel_path: str, out_dir: str, want_pdf: bool, want_csv: bool, day: str, month: str = "", error_detection: bool = False):
     player_data = parse_excel_all_sheets(excel_path)
     headers, rows = compute_top_k_and_totals(player_data, TOP_K)
-
+    
     outputs: Dict[str, str] = {}
     if want_csv:
         outputs["csv"] = export_csv(headers, rows, out_dir, f"classement_tarot_{day}.csv")
     if want_pdf:
-        outputs["pdf"] = export_pdf(headers, rows, out_dir, f"classement_tarot_{day}.pdf", day)
+        outputs["pdf"] = export_pdf(headers, rows, out_dir, f"classement_tarot_{day}.pdf", day, month)
+    
+    if error_detection:
+        authorized_players, sheetnames = get_authorized_players(excel_path)
+        unauthorized_players = []
+        
+        for row in rows:
+            # row[1] = Nom, row[2] = Prénom
+            last_name = str(row[1]).strip()
+            first_name = str(row[2]).strip()
+            player_key = (last_name, first_name)
+            
+            if player_key not in authorized_players:
+                unauthorized_players.append(player_key)
+        
+        # Créer le fichier d'erreurs seulement s'il y a des erreurs ou si la liste autorisée existe
+        if authorized_players or unauthorized_players:
+            outputs["errors"] = export_error_file(authorized_players, unauthorized_players, sheetnames, out_dir, day, month)
+    
     return outputs
 
 
@@ -247,6 +350,8 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--pdf", dest="pdf", action="store_true", help="Générer un PDF paysage")
     parser.add_argument("--csv", dest="csv", action="store_true", help="Générer un CSV")
     parser.add_argument("--day", type=str, default="Après-midi", help="Période du tournoi (pour le titre du PDF, ex: 'Après-midi' ou 'Soir')")
+    parser.add_argument("--month", type=str, default="", help="Mois du tournoi (optionnel, pour le titre du PDF)")
+    parser.add_argument("--error-detection", action="store_true", help="Activer la détection d'erreur des joueurs non autorisés")
     return parser
 
 
@@ -258,12 +363,14 @@ def main() -> None:
     want_pdf = bool(args.pdf)
     want_csv = bool(args.csv)
     day = args.day
+    month = args.month
+    error_detection = bool(getattr(args, 'error_detection', False))
 
     if not want_pdf and not want_csv:
         want_pdf = True
         want_csv = True
 
-    outputs = run(args.excel, out_dir, want_pdf, want_csv, day)
+    outputs = run(args.excel, out_dir, want_pdf, want_csv, day, month, error_detection)
 
     for kind, path in outputs.items():
         print(f"Export {kind.upper()}: {path}")

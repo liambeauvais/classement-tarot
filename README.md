@@ -20,16 +20,19 @@ env\Scripts\python.exe tarot_rankings.py <chemin_vers_excel.xlsx> --out sorties 
 ```
 
 Options:
+
 - `--out` : dossier de sortie (défaut: `.`)
 - `--pdf` : génère un PDF paysage
 - `--csv` : génère un CSV
 
 Le fichier Excel doit contenir toutes les feuilles de tournois partageant la même structure. Pour chaque feuille, les lignes utiles sont 4 à 100 (incluses), avec:
+
 - colonne C: nom de famille
 - colonne D: prénom
 - colonne I: score de la journée
 
 Les règles appliquées:
+
 - Un joueur peut être absent sur certaines feuilles
 - Un joueur sans participation n'apparaît pas dans la sortie
 - Si un joueur a moins de 15 participations, on remplit juste avec moins de colonnes renseignées
@@ -41,4 +44,5 @@ Les règles appliquées:
 
 Les colonnes sont, dans l'ordre: `Nom`, `Prénom`, 15 colonnes de meilleurs scores, `Total`, `Classement`.
 
-# classement-tarot
+## Comment build l'app
+lancer la commande build.bat
