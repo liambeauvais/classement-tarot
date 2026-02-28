@@ -153,7 +153,7 @@ def export_pdf(headers: List[str], rows: List[List], out_dir: str, filename: str
     out_path = os.path.join(out_dir, filename)
 
     styles = getSampleStyleSheet()
-    title = Paragraph(f"Challenge du {day}", styles["Title"])
+    title = Paragraph(f"Challenge {day}", styles["Title"])
     spacer = Spacer(1, 0.3*cm)
 
     # Two header rows: group label over points columns only
@@ -246,7 +246,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--out", dest="out", default=".", help="Dossier de sortie (défaut: .)")
     parser.add_argument("--pdf", dest="pdf", action="store_true", help="Générer un PDF paysage")
     parser.add_argument("--csv", dest="csv", action="store_true", help="Générer un CSV")
-    parser.add_argument("--day", dest="day", default="Mardi", help="Jour du tournoi")
+    parser.add_argument("--day", type=str, default="Après-midi", help="Période du tournoi (pour le titre du PDF, ex: 'Après-midi' ou 'Soir')")
     return parser
 
 
