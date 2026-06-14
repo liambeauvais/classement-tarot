@@ -56,7 +56,7 @@ def get_authorized_players(excel_path: str) -> set:
         return set()
 
 
-def parse_excel_all_sheets(excel_path: str) -> Dict[Tuple[str, str], Tuple[List[float], List[float]]]:
+def parse_excel_all_sheets(excel_path: str) -> Dict[Tuple[str, str], Tuple[List[float], List[float], List[int]]]:
     """Parse all sheets with identical structure and aggregate scores and points by (last, first).
 
     Only rows 4..100 (inclusive) are considered per sheet. Columns are positional:
@@ -70,7 +70,7 @@ def parse_excel_all_sheets(excel_path: str) -> Dict[Tuple[str, str], Tuple[List[
     """
     wb = load_workbook(excel_path, data_only=True)
 
-    player_to_data: Dict[Tuple[str, str], Tuple[List[float], List[float]]] = {}
+    player_to_data: Dict[Tuple[str, str], Tuple[List[float], List[float], List[int]]] = {}
 
     for ws in wb.worksheets:
         max_row = ws.max_row or 0
@@ -108,20 +108,21 @@ def parse_excel_all_sheets(excel_path: str) -> Dict[Tuple[str, str], Tuple[List[
 
             key = (last_name, first_name)
             if key not in player_to_data:
-                player_to_data[key] = ([], [])
+                player_to_data[key] = [[], [], []]
             player_to_data[key][0].append(numeric_score)
             player_to_data[key][1].append(numeric_points)
+            player_to_data[key][2].append(1)
 
     # Keep only players with at least one score and write scores to file fpr debugging
     recurrent_players = {k: v for k, v in player_to_data.items() if v[0]}
     return recurrent_players
 
 
-def compute_top_k_and_totals(player_data: Dict[Tuple[str, str], Tuple[List[float], List[float]]], k: int):
+def compute_top_k_and_totals(player_data: Dict[Tuple[str, str], Tuple[List[float], List[float], List[int]]], k: int):
     # Collect with metadata for ranking
     rows_with_meta: List[Tuple[List, int, float, float, str, str]] = []  # (base_row, play_count, total_score, total_points, ln, fn)
 
-    for (last_name, first_name), (scores, points) in player_data.items():
+    for (last_name, first_name), (scores, points, counts) in player_data.items():
         # Sort by points desc to get top k points and corresponding scores
         combined = list(zip(points, scores))
         combined.sort(key=lambda x: (-x[0], -x[1]))  # points desc, then score desc
@@ -307,11 +308,24 @@ def export_pdf(headers: List[str], rows: List[List], out_dir: str, filename: str
     doc.build(story)
     return out_path
 
-def export_recurrent_players(player_data: Dict[Tuple[str, str], Tuple[List[float], List[float]]], out_dir: str, filename: str = "classement_tarot.txt"):
+def export_recurrent_players(player_data: Dict[Tuple[str, str], Tuple[List[float], List[float], int]], out_dir: str, filename: str = "classement_tarot.txt"):
     out_path = os.path.join(out_dir, filename)
     with open(out_path, "w",encoding='utf-8') as f:
-        for key, (scores, points) in player_data.items():
-            f.write(f"{key[0]} {key[1]}: {scores} {points}\n")
+        for key, (scores, points, count) in player_data.items():
+            f.write(f"{key[0]} {key[1]}: \n\tScores: {scores}\n\tPoints: {points}\n")
+
+def export_players_participations(player_data: Dict[Tuple[str, str], Tuple[List[float], List[float], int]], out_dir: str, filename: str = "classement_tarot.txt"):
+    out_path = os.path.join(out_dir, filename)
+    with open(out_path, "w",encoding='utf-8') as f:
+        participations = []
+        for key, (scores, points, nb_participations) in player_data.items():
+            participations.append(sum(nb_participations))
+            f.write(f"{key[0]} {key[1]}: {sum(nb_participations)} participations\n")
+        avg_participations = sum(participations) / len(participations)
+        participations_median = sorted(participations)[len(participations) // 2]
+        f.write(f"Total participations: {sum(participations)}\n")
+        f.write(f"Average participations: {avg_participations}\n")
+        f.write(f"Median participations: {participations_median}\n")
 
 
 def run(excel_path: str, out_dir: str, want_pdf: bool, want_csv: bool, day: str, month: str = "", error_detection: bool = False):
@@ -319,6 +333,7 @@ def run(excel_path: str, out_dir: str, want_pdf: bool, want_csv: bool, day: str,
     headers, rows = compute_top_k_and_totals(player_data, TOP_K)
 
     export_recurrent_players(player_data, out_dir, f"recurrent_players_{day}.txt")
+    export_players_participations(player_data, out_dir, f"players_participations_{day}.txt")
     
     outputs: Dict[str, str] = {}
     if want_csv:
