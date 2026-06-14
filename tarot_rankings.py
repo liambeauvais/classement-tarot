@@ -10,7 +10,7 @@ from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.units import cm
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
 
-MODEL_SHEET_NAME = " Modele PAS TOUCHE"
+MODEL_SHEET_NAME = "MODELE PAS TOUCHE"
 START_ROW_IDX_1BASED = 4  # Excel line 4
 END_ROW_IDX_1BASED = 100  # Excel line 100 (inclusive)
 COL_LASTNAME_LETTER = "C"  # Column C
@@ -18,7 +18,6 @@ COL_FIRSTNAME_LETTER = "D"  # Column D
 COL_SCORE_LETTER = "I"  # Column I
 COL_POINTS_LETTER = "K"  # Column K
 TOP_K = 15
-
 
 def cell(ws, row: int, col_letter: str):
     return ws[f"{col_letter}{row}"].value
@@ -113,8 +112,9 @@ def parse_excel_all_sheets(excel_path: str) -> Dict[Tuple[str, str], Tuple[List[
             player_to_data[key][0].append(numeric_score)
             player_to_data[key][1].append(numeric_points)
 
-    # Keep only players with at least one score
-    return {k: v for k, v in player_to_data.items() if v[0]}
+    # Keep only players with at least one score and write scores to file fpr debugging
+    recurrent_players = {k: v for k, v in player_to_data.items() if v[0]}
+    return recurrent_players
 
 
 def compute_top_k_and_totals(player_data: Dict[Tuple[str, str], Tuple[List[float], List[float]]], k: int):
@@ -307,10 +307,18 @@ def export_pdf(headers: List[str], rows: List[List], out_dir: str, filename: str
     doc.build(story)
     return out_path
 
+def export_recurrent_players(player_data: Dict[Tuple[str, str], Tuple[List[float], List[float]]], out_dir: str, filename: str = "classement_tarot.txt"):
+    out_path = os.path.join(out_dir, filename)
+    with open(out_path, "w",encoding='utf-8') as f:
+        for key, (scores, points) in player_data.items():
+            f.write(f"{key[0]} {key[1]}: {scores} {points}\n")
+
 
 def run(excel_path: str, out_dir: str, want_pdf: bool, want_csv: bool, day: str, month: str = "", error_detection: bool = False):
     player_data = parse_excel_all_sheets(excel_path)
     headers, rows = compute_top_k_and_totals(player_data, TOP_K)
+
+    export_recurrent_players(player_data, out_dir, f"recurrent_players_{day}.txt")
     
     outputs: Dict[str, str] = {}
     if want_csv:
